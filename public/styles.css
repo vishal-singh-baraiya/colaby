@@ -1,0 +1,49 @@
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    height: 100vh;
+    margin: 0;
+  }
+  
+  #container {
+    display: flex;
+    flex: 1;
+  }
+  
+  #sidebar {
+    width: 200px;
+    padding: 20px;
+    background-color: #f0f0f0;
+  }
+  
+  #editor-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+  }
+  
+  .user-list {
+    list-style: none;
+    padding: 0;
+  }
+  
+  .user-list li {
+    padding: 5px;
+    cursor: pointer;
+  }
+  
+  .user-list li:hover {
+    background-color: #e0e0e0;
+  }
+  
+  #editor {
+    height: 300px;
+    width: 100%;
+    font-family: monospace;
+  }
+  
+  #join-container, #create-container {
+    margin-top: 20px;
+  }
+  

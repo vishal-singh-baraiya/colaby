@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Collaborative Python IDE</title>
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.css">
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/monokai.min.css">
+      <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/mode/python/python.min.js"></script>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          margin: 0;
+          padding: 20px;
+          background-color: #f4f4f4;
+        }
+        .container {
+          display: flex;
+          gap: 20px;
+          max-width: 1400px;
+          margin: 0 auto;
+        }
+        .sidebar {
+          width: 200px;
+          background: white;
+          padding: 15px;
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .main-content {
+          flex-grow: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+        }
+        .welcome-screen {
+          text-align: center;
+          padding: 20px;
+          background: white;
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .room-screen {
+          display: none;
+        }
+        .editor-container {
+          background: white;
+          padding: 15px;
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .output-container {
+          background: #2d2d2d;
+          color: #fff;
+          padding: 15px;
+          border-radius: 8px;
+          min-height: 150px;
+          font-family: monospace;
+          white-space: pre-wrap;
+        }
+        .user-list {
+          list-style: none;
+          padding: 0;
+        }
+        .user-list li {
+          padding: 8px;
+          cursor: pointer;
+          border-radius: 4px;
+        }
+        .user-list li:hover {
+          background-color: #f0f0f0;
+        }
+        .user-list li.active {
+          background-color: #e0e0e0;
+        }
+        .CodeMirror {
+          height: 400px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+        }
+        button {
+          padding: 10px 20px;
+          margin: 5px;
+          border: none;
+          border-radius: 4px;
+          background-color: #4CAF50;
+          color: white;
+          cursor: pointer;
+        }
+        button:hover {
+          background-color: #45a049;
+        }
+        input {
+          padding: 8px;
+          margin: 5px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="welcome-screen" id="welcomeScreen">
+        <h1>Collaborative Python IDE</h1>
+        <div>
+          <h2>Create New Room</h2>
+          <input id="createUsername" type="text" placeholder="Enter Your Name" />
+          <button id="createRoomBtn">Create Room</button>
+        </div>
+        <div>
+          <h2>Join Existing Room</h2>
+          <input id="joinUsername" type="text" placeholder="Enter Your Name" />
+          <input id="roomIdInput" type="text" placeholder="Enter Room ID" />
+          <button id="joinRoomBtn">Join Room</button>
+        </div>
+      </div>
+
+      <div class="room-screen" id="roomScreen">
+        <h2>Room ID: <span id="currentRoomId"></span></h2>
+        <div class="container">
+          <div class="sidebar">
+            <h3>Active Users</h3>
+            <ul class="user-list" id="userList"></ul>
+          </div>
+          <div class="main-content">
+            <div class="editor-container">
+              <h3>Selected User: <span id="selectedUserName">You</span></h3>
+              <div id="editor"></div>
+              <button id="runCode">Run Code</button>
+            </div>
+            <div class="output-container" id="output"></div>
+          </div>
+        </div>
+      </div>
+
+      <script src="/socket.io/socket.io.js"></script>
+      <script>
+        let pyodide;
+        let editor;
+        
+        async function initPyodide() {
+          pyodide = await loadPyodide();
+          console.log('Pyodide loaded');
+        }
+        
+        initPyodide();
+
+        // Initialize CodeMirror
+        editor = CodeMirror(document.getElementById('editor'), {
+          mode: 'python',
+          theme: 'monokai',
+          lineNumbers: true,
+          indentUnit: 4,
+          tabSize: 4,
+          indentWithTabs: true,
+          autofocus: true
+        });
+
+        const socket = io();
+        let currentUserId = '';
+        let currentRoomId = '';
+        let currentUserName = '';
+        let selectedUserId = '';
+        let users = new Map();
+
+        // DOM Elements
+        const welcomeScreen = document.getElementById('welcomeScreen');
+        const roomScreen = document.getElementById('roomScreen');
+        const createUsernameInput = document.getElementById('createUsername');
+        const joinUsernameInput = document.getElementById('joinUsername');
+        const roomIdInput = document.getElementById('roomIdInput');
+        const createRoomBtn = document.getElementById('createRoomBtn');
+        const joinRoomBtn = document.getElementById('joinRoomBtn');
+        const userList = document.getElementById('userList');
+        const currentRoomIdSpan = document.getElementById('currentRoomId');
+        const selectedUserNameSpan = document.getElementById('selectedUserName');
+        const output = document.getElementById('output');
+        const runCodeBtn = document.getElementById('runCode');
+
+        // Run Python code
+        runCodeBtn.addEventListener('click', async () => {
+          try {
+            // Clear previous output
+            output.textContent = 'Running...\n';
+
+            // Redirect stdout and stderr to capture output and errors
+            await pyodide.runPython(`
+              import sys
+              from io import StringIO
+              sys.stdout = StringIO()
+              sys.stderr = StringIO()
+            `);
+
+            // Get the user’s code from the editor
+            const userCode = editor.getValue();
+
+            // Run the user code
+            await pyodide.runPython(userCode);
+
+            // Capture the printed output and errors
+            const capturedOutput = await pyodide.runPython(`
+              stdout = sys.stdout.getvalue()
+              stderr = sys.stderr.getvalue()
+              sys.stdout = sys.__stdout__
+              sys.stderr = sys.__stderr__
+              stdout + stderr
+            `);
+
+            // Display the captured output in the output area
+            if (capturedOutput.trim() !== '') {
+              output.textContent = capturedOutput.trim();
+            } else {
+              output.textContent = 'Code executed successfully, but no output was produced.';
+            }
+          } catch (error) {
+            // Show any errors encountered during the execution
+            output.textContent = `Error: ${error.message || error}`;
+            console.error('Python execution error:', error);
+          }
+        });
+
+
+        // Create Room
+        createRoomBtn.addEventListener('click', () => {
+          const username = createUsernameInput.value.trim();
+          if (username) {
+            socket.emit('create-room', { username });
+          } else {
+            alert('Please enter your name');
+          }
+        });
+
+        // Join Room
+        joinRoomBtn.addEventListener('click', () => {
+          const username = joinUsernameInput.value.trim();
+          const roomId = roomIdInput.value.trim();
+          if (username && roomId) {
+            socket.emit('join-room', { username, roomId });
+          } else {
+            alert('Please enter both your name and room ID');
+          }
+        });
+
+        // Handle text changes
+        editor.on('change', (cm, change) => {
+          if (change.origin !== 'setValue') {
+            const text = cm.getValue();
+            socket.emit('text-change', {
+              text,
+              userId: selectedUserId || currentUserId
+            });
+          }
+        });
+
+        // Socket event handlers
+        socket.on('room-created', ({ roomId, userId, username }) => {
+          setupRoom(roomId, userId, username);
+        });
+
+        socket.on('room-joined', ({ roomId, userId, username, users: roomUsers }) => {
+          setupRoom(roomId, userId, username);
+          updateUsersList(roomUsers);
+        });
+
+        socket.on('user-joined', ({ users: roomUsers }) => {
+          updateUsersList(roomUsers);
+        });
+
+        socket.on('user-left', ({ users: roomUsers }) => {
+          updateUsersList(roomUsers);
+        });
+
+        socket.on('text-updated', ({ userId, text }) => {
+          if (userId === (selectedUserId || currentUserId)) {
+             const cursor = editor.getCursor();
+             const scrollInfo = editor.getScrollInfo();
+             editor.setValue(text);
+             editor.setCursor(cursor); 
+             editor.scrollTo(scrollInfo.left, scrollInfo.top);
+          }
+        });
+
+        socket.on('error-message', ({ message }) => {
+          alert(message);
+        });
+
+        // Helper functions
+        function setupRoom(roomId, userId, username) {
+          currentRoomId = roomId;
+          currentUserId = userId;
+          currentUserName = username;
+          selectedUserId = currentUserId;
+          currentRoomIdSpan.textContent = roomId;
+          welcomeScreen.style.display = 'none';
+          roomScreen.style.display = 'block';
+          editor.refresh();
+        }
+
+        function updateUsersList(roomUsers) {
+          users = new Map(roomUsers);
+          userList.innerHTML = '';
+          users.forEach((username, userId) => {
+            const li = document.createElement('li');
+            li.textContent = username + (userId === currentUserId ? ' (You)' : '');
+            li.classList.toggle('active', userId === selectedUserId);
+            li.addEventListener('click', () => selectUser(userId, username));
+            userList.appendChild(li);
+          });
+        }
+
+        function selectUser(userId, username) {
+          selectedUserId = userId;
+          selectedUserNameSpan.textContent = userId === currentUserId ? 'You' : username;
+          document.querySelectorAll('.user-list li').forEach(li => {
+            li.classList.toggle('active', li.textContent.includes(username));
+          });
+          socket.emit('get-user-text', { userId });
+        }
+      </script>
+    </body>
+    </html>
