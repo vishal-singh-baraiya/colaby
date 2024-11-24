@@ -11,6 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "express": "^4.21.1",
+    "simple-peer": "^9.11.1",
     "socket.io": "^4.8.1",
     "uuid": "^11.0.3",
     "y-webrtc": "^10.3.0"

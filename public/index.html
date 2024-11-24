@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Colaby: Collaborative Python IDE</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/monokai.min.css">
+    <link rel="icon" href="https://cdn.pixabay.com/photo/2024/05/15/01/13/cat-8762411_1280.png" type="image/png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/moxer.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/night.min.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/mode/python/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <style>
+        .particle {
+            position: absolute;
+            pointer-events: none;
+            animation: float 15s infinite;
+            filter: blur(1px);
+        }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0) translateX(0) rotate(0deg);
+            }
+            25% {
+                transform: translateY(-20px) translateX(10px) rotate(90deg);
+            }
+            50% {
+                transform: translateY(-40px) translateX(-10px) rotate(180deg);
+            }
+            75% {
+                transform: translateY(-20px) translateX(10px) rotate(270deg);
+            }
+        }
+
+        .glass-morphism {
+            background: rgba(4, 0, 27, 0.064);
+            backdrop-filter: blur(1px);
+            border: 1px solid rgba(0, 251, 17, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+
+        .gradient-border {
+            position: relative;
+            border-radius: 0.75rem;
+            background: linear-gradient(45deg, #011d1300, #017b3a00);
+            padding: 1px;
+        }
+
+        .gradient-border::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border-radius: 0.75rem;
+            padding: 2px;
+            background: linear-gradient(45deg, #ffffff, #004ef5ae);
+            mask: 
+                linear-gradient(#fff 0 0) content-box, 
+                linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+        }
+
+        .animate-gradient {
+            background: linear-gradient(-45deg, #ee7752, #e73c7e6b, #23a5d587, #23d5ab6a);
+            background-size: 400% 400%;
+            animation: gradient 15s ease infinite;
+        }
+
+        @keyframes gradient {
+            0% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        .CodeMirror {
+            height: 500px;
+            background: #01100c33;
+            
+            border-radius: 0.5rem;
+            font-family: 'Fira Code', monospace;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        #createRoomBtn {
+          background-color: rgba(0, 255, 157, 0.289);
+          border: #ffffffc7;
+          border-style: groove;
+          border-width: thin;
+        
+        }
+
+        #joinRoomBtn {
+          background-color: rgba(0, 128, 255, 0.107);
+          
+          border: #f5f6f5c8;
+          border-style: groove;
+          border-width: thin;
+        }
+
+        
+    </style>
+</head>
+<body class="bg-gray-900 min-h-screen text-white overflow-x-hidden">
+    <!-- Animated Background Particles -->
+    <div id="particles" class="fixed inset-0 pointer-events-none"></div>
+
+    <!-- Welcome Screen -->
+    <div id="welcomeScreen" class="min-h-screen flex items-center justify-center p-4">
+        <div class="max-w-6xl w-full animate__animated animate__fadeIn">
+            <div class="text-center mb-12">
+                <h1 class="text-7xl font-bold mb-7 bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-blue-500 leading-tight">
+                    Python Colaby
+                </h1>
+                <p class="text-gray-400 text-lg">Code, Collaborate, Create: Real-Time Coding with Peers!</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-8 px-4">
+                <!-- Create Room Card -->
+                <div class="gradient-border">
+                    <div class="glass-morphism p-6 rounded-xl h-full">
+                        <h2 class="text-2xl font-bold mb-6 text-green-400">Create New Room</h2>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-2">Your Name</label>
+                                <input id="createUsername" type="text" 
+                                    class="w-full px-4 py-2 bg-gray-800 rounded-lg border border-gray-700 focus:border-green-500 focus:ring-2 focus:ring-green-500 transition-all duration-300"
+                                    placeholder="Enter your name">
+                            </div>
+                            <button id="createRoomBtn" 
+                                class="w-full text-white font-bold py-2 px-4 rounded-lg hover:from-green-500 hover:to-blue-600 transition-all duration-300 transform hover:scale-105">
+                                Create Room
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Join Room Card -->
+                <div class="gradient-border">
+                    <div class="glass-morphism p-6 rounded-xl h-full">
+                        <h2 class="text-2xl font-bold mb-6 text-blue-500">Join Existing Room</h2>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-2">Your Name</label>
+                                <input id="joinUsername" type="text" 
+                                    class="w-full px-4 py-2 bg-gray-800 rounded-lg border border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all duration-300"
+                                    placeholder="Enter your name">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-2">Room ID</label>
+                                <input id="roomIdInput" type="text" 
+                                    class="w-full px-4 py-2 bg-gray-800 rounded-lg border border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all duration-300"
+                                    placeholder="Enter room ID">
+                            </div>
+                            <button id="joinRoomBtn" 
+                                class="w-full text-white font-bold py-2 px-4 rounded-lg hover:from-blue-500 hover:to-purple-600 transition-all duration-300 transform hover:scale-105">
+                                Join Room
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- IDE Screen -->
+    <div id="roomScreen" class="hidden min-h-screen p-4">
+        <div class="max-w-7xl mx-auto">
+            <!-- Room Header -->
+            <div class="flex items-center justify-between mb-6 animate__animated animate__fadeInDown">
+                <div>
+                    <h2 class="text-2xl font-bold">Room: <span id="currentRoomId" class="text-green-400 font-mono"></span></h2>
+                </div>
+                <button id="leaveRoom" 
+                    class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-all duration-300"
+                    onclick="location.reload();">
+                    Leave Room
+                </button>
+            </div>
+
+            <!-- Main Content -->
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <!-- Sidebar -->
+                <div class="lg:col-span-1">
+                    <div class="glass-morphism rounded-xl p-4 animate__animated animate__fadeInLeft">
+                        <h3 class="text-xl font-bold mb-4">Active Users</h3>
+                        <ul id="userList" class="space-y-2 custom-scrollbar max-h-[calc(100vh-250px)] overflow-y-auto">
+                            <!-- Users will be added here dynamically -->
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Editor and Output -->
+                <div class="lg:col-span-3 space-y-6">
+                    <!-- Editor -->
+                    <div class="glass-morphism rounded-xl p-4 animate__animated animate__fadeInRight">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-xl font-bold">Code Editor</h3>
+                            <div id="selectedUserName" class="text-green-400"></div>
+                        </div>
+                        <div id="editor" class="mb-4"></div>
+                        <button id="runCode" 
+                            class="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg transition-all duration-300 transform hover:scale-105">
+                            Run Code
+                        </button>
+                    </div>
+
+                    <!-- Output -->
+                    <div class="glass-morphism rounded-xl p-4 animate__animated animate__fadeInUp">
+                        <h3 class="text-xl font-bold mb-4">Output</h3>
+                        <div id="output" class="font-mono text-sm rounded-lg p-4 min-h-[200px] max-h-[400px] overflow-y-auto custom-scrollbar text-white">
+                            <!-- Output will be displayed here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Create animated particles
+        function createParticles() {
+            const particles = document.getElementById('particles');
+            const colors = ['#00f5a0', '#00d9f5', '#a200ff'];
+            
+            for (let i = 0; i < 65; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.width = '4px';
+                particle.style.height = '4px';
+                particle.style.background = colors[Math.floor(Math.random() * colors.length)];
+                particle.style.left = Math.random() * 100 + 'vw';
+                particle.style.top = Math.random() * 100 + 'vh';
+                particle.style.animationDelay = Math.random() * 1 + 's';
+                particles.appendChild(particle);
+            }
+        }
+
+        // Initialize animations
+        document.addEventListener('DOMContentLoaded', () => {
+            createParticles();
+
+            // Initialize GSAP animations
+            gsap.from(".gradient-border", {
+                duration: 1,
+                y: 50,
+                opacity: 0,
+                stagger: 0.2,
+                ease: "power3.out"
+            });
+
+            // Add hover animations to buttons
+            const buttons = document.querySelectorAll('button');
+            buttons.forEach(button => {
+                button.addEventListener('mouseenter', () => {
+                    gsap.to(button, {
+                        scale: 1.05,
+                        duration: 0.1
+                    });
+                });
+                button.addEventListener('mouseleave', () => {
+                    gsap.to(button, {
+                        scale: 1,
+                        duration: 0.1
+                    });
+                });
+            });
+        });
+    </script>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/script.js"></script>
+</body>
+</html>
