@@ -118,7 +118,7 @@ const handleEditorChange = debounce((cm) => {
     sendEditorContentToPeer(text, selectedUserId); // Send editor content to selected peer
   }
   socket.emit('text-change', { text, userId: selectedUserId || currentUserId });
-}, 500);
+}, 200);
 
 editor.on('change', (cm, change) => {
   if (change.origin !== 'setValue') {
