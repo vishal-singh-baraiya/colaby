@@ -3,9 +3,6 @@ let editor;
 let peerConnections = new Map(); // Store peer connections for each user
 let dataChannels = new Map(); // Store RTCDataChannels for each user
 
-
-
-
 async function initPyodide() {
   pyodide = await loadPyodide();
   console.log('Pyodide loaded');
@@ -50,6 +47,12 @@ const currentRoomIdSpan = document.getElementById('currentRoomId');
 const selectedUserNameSpan = document.getElementById('selectedUserName');
 const output = document.getElementById('output');
 const runCodeBtn = document.getElementById('runCode');
+
+let lastUpdateTimestamp = Date.now();
+
+function shouldApplyUpdate(timestamp) {
+  return timestamp > lastUpdateTimestamp;
+}
 
 // Helper: Show messages in the output area
 const showOutput = (message, isError = false) => {
@@ -116,9 +119,11 @@ const handleEditorChange = debounce((cm) => {
   const text = cm.getValue();
   if (selectedUserId) {
     sendEditorContentToPeer(text, selectedUserId); // Send editor content to selected peer
-  }
+  } 
+
   socket.emit('text-change', { text, userId: selectedUserId || currentUserId });
 }, 200);
+
 
 editor.on('change', (cm, change) => {
   if (change.origin !== 'setValue') {
@@ -144,13 +149,25 @@ socket.on('user-left', ({ users: roomUsers }) => {
   updateUsersList(roomUsers);
 });
 
+// Modify the text-updated event handler
+// Modify the text-updated event handler
 socket.on('text-updated', ({ userId, text }) => {
   if (userId === (selectedUserId || currentUserId)) {
     const cursor = editor.getCursor();
     const scrollInfo = editor.getScrollInfo();
-    editor.setValue(text);
-    editor.setCursor(cursor);
-    editor.scrollTo(scrollInfo.left, scrollInfo.top);
+    
+    // Only update if the text is different
+    if (editor.getValue() !== text) {
+      // Prevent cursor jumping by using replaceRange
+      const lastLine = editor.lastLine();
+      const lastLineLength = editor.getLine(lastLine).length;
+      
+      editor.replaceRange(text, { line: 0, ch: 0 }, { line: lastLine, ch: lastLineLength });
+      
+      // Restore cursor and scroll position
+      editor.setCursor(cursor);
+      editor.scrollTo(scrollInfo.left, scrollInfo.top);
+    }
   }
 });
 
